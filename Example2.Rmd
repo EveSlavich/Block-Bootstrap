@@ -1,0 +1,67 @@
+---
+title: 'Example 2: Community-level Hypothesis Test using BlockBootID with mvabund'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+## Setting Up
+
+First load the data and R packages you need into the R workspace.
+
+
+
+```{r results = "hide", echo=TRUE, message=FALSE}
+load("PlayData_for_Examples.RData") ### load the data for the examples
+source("LoadFunctions.R") #### Source the functions required to run the block bootstrap
+
+
+#Install packages if required
+if(!require(mvabund)) { install.packages("mvabund", repos = "http://cran.us.r-project.org"); 
+require(mvabund) }
+library(mvabund)
+
+
+```
+
+#Motivation
+
+We want to test an assemblage/ community of species for the significance of a bunch of variables, using ``mvabund::summary''.
+
+
+This example assumes a block size is selected by the user already, from either pilot study or as in Example 3. They can then use \textbf{BlockBootID} to generate an ID matrix for input into mvabund.
+
+
+
+```{r pressure, echo=TRUE}
+set.seed(42)
+
+lookuptables.folderpathname = "LookupTables/" 
+
+######## Get a bootID matrix (takes a minute or two)
+BootID.example2 = BlockBootID(x = x ,
+                              y = y,
+                              block_Ls = 0.1,
+                              NBoot = 500,
+                              Grid_space = 0.01,
+                              lookuptables.folderpath =  lookuptables.folderpathname)
+```
+## Run hypothesis test/ summary in mvabund
+
+
+##running time <2 minutes
+
+
+```{r variogram, echo=TRUE}
+responseMultiSpecies=mvabund(multispecies_dat[,1:20]) #20 species multivariate reponse
+mod.1  = manyglm(responseMultiSpecies~temperature, data = multispecies_dat,family="binomial")
+mod.2  = manyglm(responseMultiSpecies~temperature*treatment, data = multispecies_dat,family="binomial")
+anova.results = anova(mod.1, mod.2, bootID=BootID.example2, resamp="case")
+anova.results
+
+```
+The treatment is not significant. 
+

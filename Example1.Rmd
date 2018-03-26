@@ -1,0 +1,100 @@
+---
+title: 'Example 1: Standard Error of a Coefficient'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,tidy.opts=list(width.cutoff=60))
+
+```
+
+## Setting Up
+
+First load the data and R functions you need into the R workspace.
+
+
+
+```{r results = "hide", echo=TRUE, message=FALSE}
+load("PlayData_for_Examples.RData") ### load the data for the examples
+source("LoadFunctions.R") #### Source the functions required to run the block bootstrap
+
+
+
+```
+
+#Motivation
+
+Imagine we want to know the standard error of our estimate for $\beta$- the coefficient of temperature. First fit the model.  
+
+```{r pressure, echo=TRUE}
+set.seed(42)
+
+
+fit1 = lm (response ~ temperature, data = dat)
+summary(fit1)
+```
+## Getting Variogram Practical Range
+Fit a variogram on the residuals- notice we can see spatial autocorrelation. 
+Use the variogram practical range as a tuning parameter for the Lahiri method of block selection. 
+Always check the variogram visually. Sometimes you may need to change max.dist, breaks or initial conditions to get a sensible practical range. It is hard to automate this process.
+```{r variogram, echo=TRUE}
+
+ini.vals <- expand.grid(seq(0,10,l=100), seq(0,1,l=100)) #inital values for variofit
+variogram_block_length = select_b_length_off_variogram_envelope(x,y,resids = fit1$resid, 
+max.dist = 0.4, breaks=c(0,0.025,0.05,0.075,0.1,0.15,0.2,0.3,0.4,0.5,0.6,0.7,0.8,1.5),ini=ini.vals)
+
+
+variogram_block_length
+
+```
+## Coding StatFunction argument
+Define BetaCoeff a function which will be the *StatFunction* argument to *BlockBootApply*. BetaCoeff 
+gets a coefficient for temperature for inference
+```{r funct, echo=TRUE}
+
+
+
+BetaCoeff = function(dat){
+  fit1 = lm ("response~temperature", data=dat)
+  Beta = fit1$coefficients["temperature"]
+  Beta
+}
+
+```
+## Run Block Bootstrap
+
+First the user should create a folder called e.g. LookupTables in their R working directory. As all the examples below use the same site coordinates they all share the same lookup tables. However if a new analysis is being done on different data (with different site co-ordinates), then a new lookup table needs to be created. 
+
+```{r ,  echo=TRUE}
+
+lookuptables.folderpathname = "LookupTables/" 
+
+```
+Run Block Bootstrap, using Lahiri method of block size selection, with the variogram to select the tuning parameter. We search over 4 blocks sizes (0- i.e. IID, 0.05, 0.1, 0.2). BlockBootApply uses the size which minimises the Empirical MSE of SE($\beta$). Use 0.2 as tuning block length as per variogram practical range (tuning block length =4). 
+```{r ,  echo=TRUE, warning=FALSE, message=FALSE}
+Results = BlockBootApply (x = x ,y = y ,block_Ls = c(0,0.05,0.1, 0.2), Grid_space = 0.01 , 
+                          dat = dat ,
+                          Stat.function = BetaCoeff,  tuning_block_length = 0.2, 
+                          NBoot = 500, method.block.length.select = "EmpiricalMSE",
+                          type="SE", lookuptables.folderpath=lookuptables.folderpathname)
+
+
+```
+
+
+Check sensitivity to tuning parameter. See that some columns are minimised by block length 0.1, and some columns by 0.05 so tuning block length was imporant here
+```{r , echo=TRUE}
+
+Results$Empirical.MSE
+```
+The block size parameter chosen is:
+
+```{r, echo=TRUE}
+Results$EmpiricalMSE_block_size
+```
+This is the standard error (estimated via block bootstrap to account for spatial autocorrelation) of $\beta$
+
+```{r , echo=TRUE}
+Results$SE.estimate.EmpiricalMSE_block_size
+```
+

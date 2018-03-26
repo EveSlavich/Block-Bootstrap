@@ -1,0 +1,59 @@
+---
+title: "Simulation Details"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r variogram, echo=FALSE, message=FALSE, warning=FALSE}
+
+load("ForPub.RData")
+dat$Cymbopogon.refractus = dat$response
+```
+## Functions to simulate a spatially correlated species response. 
+
+```{r , echo=TRUE}
+logit.inv=function(x){1/(1+exp(-x))}
+
+Simulate_species_Data_with_spatial_autocorrelation = function(var1,range_autocor, x, y, 
+                                                              var2 = 1, xB, family){
+  u = RFsimulate(model = RMexp(var=var1, scale=range_autocor), x=x, y=y, grid=F, n=1)[[1]]
+  noise = rnorm(length(xB),0,var2)
+  mu = xB + u + noise
+  w = pnorm(mu,xB, sqrt(var2^2+var1))
+  #copula simulation
+  if (family == "nbinom"){
+  y = qnbinom(w, size=1, prob=exp(mu))
+  }
+  if(family =="binomial"){
+  y = qbinom(w, size=1, prob=logit.inv(mu))
+  }
+  y  
+}
+
+
+
+```
+## Input parameters
+
+We used all permutations of var1 = 1,4 (v), range_autocor = 1, 3 ,10, 20km (scale of range of autocorrelation, s),  family= "nbinom" and "binom". 
+
+xB is the part of species response determined by some environmental variables ($X^T\beta$). For the type I error simulation xB = 0, as we were testing for false positives. For the standard error simulation, we simulated from a model fitted to the topoclimate and  Cymbopogon refractus presence absence data. In calculating the SE(AUC), we refitted the model each time using the same terms we simulated under.
+
+
+## Example
+
+```{r , echo=TRUE, message=FALSE}
+library(RandomFields)
+head(dat)
+
+fit1 = glm(Cymbopogon.refractus ~ poly(mint5,2) +poly(maxt95,2), data=dat, family="binomial")
+xB = predict(fit1,type="link")
+
+simulated.response = Simulate_species_Data_with_spatial_autocorrelation (var1 = 1,
+range_autocor = 1, x = dat$x, y=dat$y, var2 = 1, xB = xB, family="binomial")
+
+
+```
+
